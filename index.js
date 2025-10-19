@@ -136,6 +136,32 @@ app.get("/user/:id/transactions", async (req, res) => {
   }
 });
 
+
+// Delete transaction
+app.delete("/admin/transaction/:id", async (req, res) => {
+  try {
+    const tx = await TransactionModel.findByIdAndDelete(req.params.id);
+    if (!tx) return res.status(404).json({ error: "Transaction not found" });
+
+    const user = await EmployeeeModel.findById(tx.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (tx.type === "credit") user.balance -= tx.amount;
+    if (tx.type === "debit") user.balance += tx.amount;
+
+    await user.save();
+
+    res.json({ message: "Transaction deleted successfully" });
+
+    // ⚡ NEW: Notify user
+    io.to(user.email).emit("transactionDeleted", tx._id);
+    io.to(user.email).emit("balanceUpdated", { balance: user.balance });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Add transaction
 app.post("/admin/user/:id/transaction", async (req, res) => {
   try {
@@ -388,6 +414,13 @@ app.delete("/admin/messages", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+
+
+
+
+
 
 // ==================== START SERVER ====================
 httpServer.listen(PORT, () =>
