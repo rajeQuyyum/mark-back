@@ -503,6 +503,69 @@ app.delete("/admin/notifications/:id", async (req, res) => {
 
 
 
+// ==================== ADDITIONAL INFO MODEL ====================
+const AdditionalInfoSchema = new mongoose.Schema({
+  accountNumber: { type: String, required: true }, // user's MongoDB _id
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  phone: { type: String },
+  address: { type: String },
+  gender: { type: String },
+});
+
+const AdditionalInfoModel = mongoose.model("AdditionalInfo", AdditionalInfoSchema);
+
+// ==================== ADDITIONAL INFO ROUTES ====================
+
+// Fetch additional info for a user
+app.get("/user/:id/additional-info", async (req, res) => {
+  try {
+    const info = await AdditionalInfoModel.findOne({ accountNumber: req.params.id });
+    res.json(info || {}); // return empty object if none
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Save or update additional info
+app.post("/user/:id/additional-info", async (req, res) => {
+  try {
+    const { phone, address, gender } = req.body;
+
+    // Find user from EmployeeeModel
+    const user = await EmployeeeModel.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Check if additional info already exists
+    let info = await AdditionalInfoModel.findOne({ accountNumber: user._id });
+    if (info) {
+      // Update existing info
+      info.phone = phone;
+      info.address = address;
+      info.gender = gender;
+      await info.save();
+    } else {
+      // Create new info
+      info = await AdditionalInfoModel.create({
+        accountNumber: user._id,
+        name: user.name,
+        email: user.email,
+        phone,
+        address,
+        gender,
+      });
+    }
+
+    res.json(info);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
 
 
 // ==================== START SERVER ====================
