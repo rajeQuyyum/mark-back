@@ -418,6 +418,89 @@ app.delete("/admin/messages", async (req, res) => {
 
 
 
+// ==================== NOTIFICATIONS ====================
+const NotificationSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  userEmail: { type: String, required: false }, // null means "all users"
+  createdAt: { type: Date, default: Date.now },
+});
+const NotificationModel = mongoose.model("Notification", NotificationSchema);
+
+// 🔹 Create a new notification
+app.post("/admin/notifications", async (req, res) => {
+  try {
+    const { title, message, userEmail } = req.body;
+    const notification = await NotificationModel.create({ title, message, userEmail });
+
+    // If targeted, notify specific user; else broadcast to all
+    if (userEmail) {
+      io.to(userEmail).emit("newNotification", notification);
+    } else {
+      io.emit("newNotification", notification);
+    }
+
+    res.json(notification);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Get all notifications (admin)
+app.get("/admin/notifications", async (req, res) => {
+  try {
+    const notifications = await NotificationModel.find().sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Get notifications for a specific user
+app.get("/user/:email/notifications", async (req, res) => {
+  try {
+    const { email } = req.params;
+    const notifications = await NotificationModel.find({
+      $or: [{ userEmail: email }, { userEmail: { $exists: false } }, { userEmail: null }],
+    }).sort({ createdAt: -1 });
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Update a notification
+app.put("/admin/notifications/:id", async (req, res) => {
+  try {
+    const { title, message } = req.body;
+    const notification = await NotificationModel.findByIdAndUpdate(
+      req.params.id,
+      { title, message },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ error: "Notification not found" });
+
+    io.emit("notificationUpdated", notification);
+    res.json(notification);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔹 Delete a notification
+app.delete("/admin/notifications/:id", async (req, res) => {
+  try {
+    const notification = await NotificationModel.findByIdAndDelete(req.params.id);
+    if (!notification) return res.status(404).json({ error: "Notification not found" });
+
+    io.emit("notificationDeleted", req.params.id);
+    res.json({ success: true, message: "Notification deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 
 
